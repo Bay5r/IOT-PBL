@@ -14,27 +14,62 @@
 
 // Pin definitions
 #define RFID_SS 5
-#define RFID_RST 22
+#define RFID_RST 27
+
 #define GREEN_LED 16
 #define RED_LED 17
 
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
 //Global variables
+
 String uid;
-const int SCREEN_WIDTH = 128; // OLED display width, in pixels
-const int SCREEN_HEIGHT = 64; // OLED display height, in pixels
 const int NUM_CARDS = 2; // Number of allowed cards
 const String allowedCards[NUM_CARDS] = {"A7 53 2E 06", "53 4E 04 56"}; // Allowed card UIDs
 unsigned long indicatorStart = 0; // Variable to store the start time of the indicator
 unsigned long indicatorTime = 0; // Variable to store the duration of the indicator
+
+
 bool indicatorOn = false; // Variable to track the state of the indicator
 unsigned long lastScanTime = 0; // Variable to store the last scan time
 
+float temperature; // Variable to store the temperature reading
+unsigned long lastTempRead = 0; // Variable to store the last temperature reading time
+const int TEMP_INTERVAL = 2000; // Interval for temperature readings in milliseconds
+const int MAX_TEMP_READINGS = 10; // Maximum number of readings to store
+float temperatureReadings[MAX_TEMP_READINGS] = {0}; // Array to store the temperature readings
+int readingIndex = 0; // Index for storing temperature readings
+int readingCount = 0; // Count of valid temperature readings
+
 // Creating library objects
 Adafruit_BMP280 bmp; // Object for BMP280 sensor
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 MFRC522 rfid(RFID_SS, RFID_RST); // Create MFRC522 instance
 
-//Functions 
+//BMP280 Functions
+void storeTemperatureReading(float temp) {
+  temperatureReadings[readingIndex] = temp;
+  readingIndex = (readingIndex + 1) % MAX_TEMP_READINGS;
+  if (readingCount < MAX_TEMP_READINGS) {
+    readingCount++;
+  }
+}
+
+void calculateAverageTemperature() {
+  if (readingCount == 0) {
+    Serial.println("No temperature readings available.");
+    return;
+  }
+    float sum = 0;
+    for (int i = 0; i < readingCount; i++) {
+    sum += temperatureReadings[i];
+  }
+   float average = sum / readingCount;
+    Serial.print("Average Temperature: ");
+    Serial.print(average);
+    Serial.println(" C");
+}
 
 //LED Functions
 void startIndicatorTimer(unsigned long duration)
@@ -98,8 +133,21 @@ bool isAuthorized(String uid) {
 
 
 void setup() {
-Serial.begin(115200);
+  Serial.begin(115200);
   Serial.println("Program Started");
+
+  //BMP280 Sensor Code
+  Wire.begin(21,22);
+  Serial.println();
+  if (bmp.begin(0x76)) {
+    Serial.println("BMP280 sensor initialized successfully at 0x76");
+  } 
+  else if (bmp.begin(0x77)) {
+    Serial.println("BMP280 sensor initialized successfully at 0x77");
+  }
+  else {
+    Serial.println("Could not find BMP280 sensor");
+  }
 
   // RFID code
   SPI.begin();
@@ -114,6 +162,7 @@ Serial.begin(115200);
 }
 
 void loop() {
+  //RFID code
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
     String uid = getUID();
     Serial.print("Card UID: ");
@@ -131,4 +180,11 @@ void loop() {
     allIndicatorsOff();
     indicatorOn = false;
   }
+  //BMP280 Sensor Code
+ if (millis() - lastTempRead >= TEMP_INTERVAL){
+    temperature = bmp.readTemperature(); 
+    calculateAverageTemperature();
+    lastTempRead = millis(); 
+    storeTemperatureReading(temperature);
+ }  
 }
