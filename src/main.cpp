@@ -21,6 +21,14 @@
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+#define OLED_DC 25
+#define OLED_CS 26
+#define OLED_RST 33
+#define OLED_CLK 14
+#define OLED_MOSI 13
+
+
+
 
 //Global variables
 
@@ -44,8 +52,9 @@ int readingCount = 0; // Count of valid temperature readings
 
 // Creating library objects
 Adafruit_BMP280 bmp; // Object for BMP280 sensor
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
-MFRC522 rfid(RFID_SS, RFID_RST); // Create MFRC522 instance
+MFRC522 rfid(RFID_SS, RFID_RST); // Create MFRC522 instance 
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI, OLED_CLK, OLED_DC, OLED_RST, OLED_CS); // Create SSD1306 display object
+
 
 //BMP280 Functions
 void storeTemperatureReading(float temp) {
@@ -134,10 +143,19 @@ bool isAuthorized(String uid) {
 
 void setup() {
   Serial.begin(115200);
+  SPI.begin();
+  display.begin(SSD1306_SWITCHCAPVCC);
+  Wire.begin(21,22);
   Serial.println("Program Started");
 
+  //OLED Display Code
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+
   //BMP280 Sensor Code
-  Wire.begin(21,22);
+  
   Serial.println();
   if (bmp.begin(0x76)) {
     Serial.println("BMP280 sensor initialized successfully at 0x76");
@@ -150,7 +168,6 @@ void setup() {
   }
 
   // RFID code
-  SPI.begin();
   rfid.PCD_Init();
   delay(10);
   rfid.PCD_DumpVersionToSerial();
@@ -186,5 +203,12 @@ void loop() {
     calculateAverageTemperature();
     lastTempRead = millis(); 
     storeTemperatureReading(temperature);
- }  
+  } 
+ //OLED Display Code
+  display.clearDisplay();
+  display.setCursor(0, 20);
+  display.print("Average Temperature: ");
+  display.print(temperature);
+  display.println(" C");
+  display.display();
 }
